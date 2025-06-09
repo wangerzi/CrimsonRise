@@ -162,7 +162,7 @@ if submitted and user_prompt:
             cols = st.columns(min(len(generated_images), 4))
             for idx, image_url in enumerate(generated_images):
                 with cols[idx % 4]:
-                    st.image(image_url, caption=f"红色年代海报 {idx + 1}", width=512)
+                    st.image(image_url, caption=f"红色年代海报 {idx + 1}", width=256)
         else:
             st.error("❌ 图片生成失败，请检查配置或重试")
 
