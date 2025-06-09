@@ -1,102 +1,27 @@
 # coding:utf-8
 import streamlit as st
-import requests
-import json
-from volcengine.visual.VisualService import VisualService
-from config import VOLCENGINE_ACCESS_KEY, VOLCENGINE_SECRET_KEY, OPENAI_API_KEY, OPENAI_BASE_URL, DOUBAO_MODEL
+from lib.poster_generator import PosterGenerator
+from config import (
+    VOLCENGINE_ACCESS_KEY, 
+    VOLCENGINE_SECRET_KEY, 
+    OPENAI_API_KEY, 
+    OPENAI_BASE_URL, 
+    DOUBAO_MODEL
+)
 
-# Initialize Visual Service
-visual_service = VisualService()
-visual_service.set_ak(VOLCENGINE_ACCESS_KEY)
-visual_service.set_sk(VOLCENGINE_SECRET_KEY)
+# Initialize services
+@st.cache_resource
+def init_services():
+    poster_gen = PosterGenerator(
+        VOLCENGINE_ACCESS_KEY,
+        VOLCENGINE_SECRET_KEY,
+        OPENAI_API_KEY,
+        OPENAI_BASE_URL,
+        DOUBAO_MODEL
+    )
+    return poster_gen
 
-# Predefined aspect ratios and corresponding dimensions
-ASPECT_RATIOS = {
-    "1:1 (正方形)": (1328, 1328),
-    "4:3 (标准)": (1472, 1104),
-    "3:2 (经典)": (1584, 1056),
-    "16:9 (宽屏)": (1664, 936),
-    "21:9 (超宽屏)": (2016, 864)
-}
-
-def generate_poster_prompt(user_prompt):
-    """Use Doubao to generate poster-style prompt via direct HTTP request"""
-    try:
-        # Prepare request headers
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENAI_API_KEY}"
-        }
-        
-        # Prepare request payload
-        payload = {
-            "model": DOUBAO_MODEL,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一个专业的红色年代海报设计师。请根据用户输入的内容，生成一个复古大字报风格的插画描述。格式必须是：'生成[合适的主体描述]作为主体，复古大字报风格的插画，背景是[相关背景元素]，底部是[相关标语]'。要体现红色年代的热情、团结、奋进精神，不要出现敏感内容如人民、革命等"
-                },
-                {
-                    "role": "user",
-                    "content": f"请为以下内容生成红色年代海报风格的提示词：{user_prompt}"
-                }
-            ],
-            "max_tokens": 200,
-            "temperature": 0.7
-        }
-        
-        # Make HTTP request
-        response = requests.post(
-            f"{OPENAI_BASE_URL}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        # Check response status
-        response.raise_for_status()
-        
-        # Parse response
-        result = response.json()
-        return result["choices"][0]["message"]["content"].strip()
-        
-    except requests.exceptions.RequestException as e:
-        st.error(f"网络请求失败: {e}")
-        raise e
-    except KeyError as e:
-        st.error(f"响应格式错误: {e}")
-        raise e
-    except Exception as e:
-        st.error(f"生成提示词失败: {e}")
-        raise e
-
-def generate_images(prompt, count, width, height):
-    """Generate images using Volcengine API"""
-    try:
-        request_body = {
-            "req_key": "high_aes_general_v30l_zt2i",
-            "prompt": prompt,
-            "use_pre_llm": False,
-            "seed": -1,
-            "scale": 2.5,
-            "width": width,
-            "height": height,
-            "return_url": True,
-        }
-        
-        images = []
-        for i in range(count):
-            response = visual_service.cv_process(request_body)
-            if response.get("code") == 10000:
-                generated_images = response["data"].get("image_urls", [])
-                images.extend(generated_images)
-            else:
-                st.error(f"第{i+1}张图片生成失败: {response.get('message')}")
-        
-        return images
-    except Exception as e:
-        st.error(f"图片生成异常: {e}")
-        return []
+poster_generator = init_services()
 
 # Streamlit App
 st.title("🚩 红色年代海报生成器")
@@ -108,6 +33,8 @@ st.markdown("""
 
 **示例输入:** "几位劳动者在工厂工作"  
 **AI会生成类似:** "生成几位分别在挥拳、前冲、吹冲锋号、办公的劳动者作为主体，复古大字报风格的插画，背景是工厂机械，底部是'劳动最光荣'"
+
+💡 **提示:** 如需高清化处理，可将生成的图片链接复制到 [🔍 图像超分] 页面进行处理。
 """)
 
 with st.form("red_poster_form"):
@@ -127,15 +54,16 @@ with st.form("red_poster_form"):
         
         # Image aspect ratio selection
         st.subheader("📐 图片比例")
+        aspect_ratios = poster_generator.get_aspect_ratios()
         selected_ratio = st.selectbox(
             "选择比例:",
-            options=list(ASPECT_RATIOS.keys()),
+            options=list(aspect_ratios.keys()),
             index=0,  # Default to 1:1
             help="选择适合的图片比例，每种比例都有对应的最佳尺寸"
         )
         
         # Get dimensions based on selected ratio
-        width, height = ASPECT_RATIOS[selected_ratio]
+        width, height = aspect_ratios[selected_ratio]
         
         # Display selected dimensions
         st.info(f"📏 尺寸: {width} × {height}")
@@ -145,26 +73,42 @@ with st.form("red_poster_form"):
 
 if submitted and user_prompt:
     with st.spinner("正在生成红色年代风格提示词..."):
-        # Generate poster prompt using Doubao
-        poster_prompt = generate_poster_prompt(user_prompt)
-        
-        st.success("✅ AI生成的海报提示词:")
-        st.info(poster_prompt)
+        try:
+            # Generate poster prompt
+            poster_prompt = poster_generator.generate_prompt(user_prompt)
+            st.success("✅ AI生成的海报提示词:")
+            st.info(poster_prompt)
+        except Exception as e:
+            st.error(f"❌ 提示词生成失败: {e}")
+            st.stop()
     
     with st.spinner("正在生成海报图片..."):
-        # Generate images
-        generated_images = generate_images(poster_prompt, image_count, width, height)
-        
-        if generated_images:
-            st.success(f"🎉 成功生成 {len(generated_images)} 张红色年代海报!")
+        try:
+            # Generate images
+            generated_images = poster_generator.generate_images(poster_prompt, image_count, width, height)
             
-            # Display images in columns
-            cols = st.columns(min(len(generated_images), 4))
-            for idx, image_url in enumerate(generated_images):
-                with cols[idx % 4]:
-                    st.image(image_url, caption=f"红色年代海报 {idx + 1}", width=256)
-        else:
-            st.error("❌ 图片生成失败，请检查配置或重试")
+            if generated_images:
+                st.success(f"🎉 成功生成 {len(generated_images)} 张红色年代海报!")
+                
+                # Display images in columns
+                cols = st.columns(min(len(generated_images), 4))
+                for idx, image_url in enumerate(generated_images):
+                    with cols[idx % 4]:
+                        st.image(image_url, caption=f"红色年代海报 {idx + 1}", width=256)
+                        
+                        # Add copy URL button for each image
+                        with st.expander(f"📋 图片链接 {idx + 1}"):
+                            st.code(image_url, language=None)
+                            st.caption("💡 复制此链接到 [🔍 图像超分] 页面进行高清化处理")
+                            
+                # High-resolution processing tip
+                st.markdown("---")
+                st.info("🔍 **想要更高清的图片？** 复制上面的图片链接，前往 [🔍 图像超分] 页面进行4倍超分辨率处理！")
+                            
+            else:
+                st.error("❌ 图片生成失败，请重试")
+        except Exception as e:
+            st.error(f"❌ 图片生成失败: {e}")
 
 elif submitted and not user_prompt:
     st.warning("⚠️ 请输入您的创意描述") 
