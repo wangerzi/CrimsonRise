@@ -2,6 +2,11 @@
 
 基于火山引擎的AI图像生成平台，包含通用图像生成器和红色年代海报生成器。
 
+<img width="1401" alt="image" src="https://github.com/user-attachments/assets/42329709-f7c0-41cc-8c28-4b5ce0377ab6" />
+
+<img width="1439" alt="image" src="https://github.com/user-attachments/assets/27d17506-d21b-4e81-831e-d367ffa5b9f9" />
+
+
 ## 功能特性
 
 - 🎨 **通用图像生成器**: 支持全参数配置的图像生成
