@@ -156,21 +156,7 @@ if submitted:
         
         # 显示生成的图片
         for idx, image_url in enumerate(generated_images):
-            col1, col2 = st.columns([4, 1])
+            st.image(image_url, caption=f"生成的图像 {idx + 1}")
             
-            with col1:
-                st.image(image_url, caption=f"生成的图像 {idx + 1}")
-            
-            with col2:
-                # 保存按钮
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_{idx+1}.jpeg"
-                
-                if st.button(f"💾 保存图片 {idx + 1}", key=f"save_{idx}", help="点击保存到本地文件夹"):
-                    filepath = save_image(image_url, filename)
-                    if filepath:
-                        st.success(f"✅ 已保存到: {filepath}")
-                    else:
-                        st.error("❌ 保存失败")
     else:
         st.warning("没有成功生成图片")
